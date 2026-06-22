@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rayons de livraison — Magasins Carrefour</title>
+
+<!-- Leaflet (carte) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<!-- Supabase (base partagée — optionnelle) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root{
+    --brand:#C8102E;
+    --brand-dark:#A21521;
+    --ink:#15212b;
+    --muted:#6b7785;
+    --bg:#eef1f4;
+    --card:#ffffff;
+    --border:#dde3ea;
+    --border-strong:#c7d0da;
+    --shadow:0 1px 2px rgba(21,33,43,.06),0 8px 24px rgba(21,33,43,.06);
+
+    --bu-express:#1E8E3E;
+    --bu-market:#C8102E;
+    --bu-hyper:#1565C0;
+    --bu-gourmet:#5D4037;
+    --bu-autre:#7a8794;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    font-size:14px;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit}
+
+  /* ---------- Header ---------- */
+  header.top{
+    background:linear-gradient(180deg,var(--brand),var(--brand-dark));
+    color:#fff;
+    padding:12px 18px;
+    display:flex;align-items:center;gap:14px;
+    box-shadow:0 2px 10px rgba(162,21,33,.25);
+    position:relative;z-index:1000;
+  }
+  .logo{
+    width:38px;height:38px;border-radius:9px;background:#fff;color:var(--brand);
+    display:grid;place-items:center;font-weight:800;font-size:22px;flex:none;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.5);
+  }
+  .title-wrap h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.2px}
+  .title-wrap p{margin:1px 0 0;font-size:12px;opacity:.85}
+  .header-stat{margin-left:16px;text-align:right;font-size:12px;opacity:.95}
+  .header-stat b{font-size:20px;display:block;font-variant-numeric:tabular-nums;line-height:1}
+
+  .mode-badge{
+    margin-left:auto;font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:20px;
+    background:rgba(255,255,255,.18);color:#fff;white-space:nowrap;letter-spacing:.2px;
+  }
+  .mode-badge.mode-cloud{background:#1E8E3E}
+  .mode-badge.mode-loading{background:#B7791F}
+  .mode-badge.mode-error{background:#6b0f1d}
+
+  /* ---------- Layout ---------- */
+  .app{display:flex;height:calc(100% - 62px);min-height:0}
+  .sidebar{
+    width:360px;flex:none;background:var(--card);border-right:1px solid var(--border);
+    overflow-y:auto;padding:14px;
+  }
+  .map-panel{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+
+  /* ---------- Cards / sections ---------- */
+  .card{
+    background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:14px;margin-bottom:14px;box-shadow:var(--shadow);
+  }
+  .card h2{
+    margin:0 0 12px;font-size:12px;text-transform:uppercase;letter-spacing:.8px;
+    color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px;
+  }
+  .card h2 .dot{width:7px;height:7px;border-radius:50%;background:var(--brand)}
+
+  /* ---------- Form ---------- */
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px}
+  .field input,.field select{
+    width:100%;padding:9px 10px;border:1px solid var(--border-strong);border-radius:8px;
+    font-size:14px;color:var(--ink);background:#fff;transition:border-color .12s,box-shadow .12s;
+  }
+  .field input:focus,.field select:focus{
+    outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(200,16,46,.12);
+  }
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hint{font-size:11.5px;color:var(--muted);line-height:1.45;margin:6px 0 0}
+  .hint.warn{color:var(--brand-dark)}
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    appearance:none;border:1px solid transparent;border-radius:8px;padding:9px 12px;
+    font-size:13px;font-weight:600;cursor:pointer;transition:transform .04s,background .12s,box-shadow .12s;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--brand);color:#fff}
+  .btn-primary:hover{background:var(--brand-dark)}
+  .btn-ghost{background:#fff;color:var(--ink);border-color:var(--border-strong)}
+  .btn-ghost:hover{background:#f6f8fa;border-color:var(--muted)}
+  .btn-sub{background:#f1f4f7;color:var(--ink);border-color:var(--border)}
+  .btn-sub:hover{background:#e7ecf1}
+  .btn-block{width:100%}
+  .btn-sm{padding:6px 9px;font-size:12px}
+  .btn-danger{color:var(--brand-dark)}
+  .btn-row{display:flex;gap:8px}
+  .btn-row .btn{flex:1}
+
+  /* ---------- Filters ---------- */
+  .bu-checks{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .bu-check{
+    display:flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid var(--border);
+    border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;user-select:none;background:#fff;
+  }
+  .bu-check:hover{background:#f7f9fb}
+  .bu-check input{accent-color:var(--brand);width:15px;height:15px}
+  .swatch{width:11px;height:11px;border-radius:3px;flex:none}
+
+  /* Magasin checks (multi-select) */
+  .magasin-checks{display:grid;grid-template-columns:1fr;gap:6px}
+  .magasin-check{
+    display:flex;align-items:center;gap:7px;padding:8px 9px;border:1px solid var(--border);
+    border-radius:7px;cursor:pointer;font-size:13px;user-select:none;background:#fff;
+    transition:background .12s,border-color .12s;
+  }
+  .magasin-check:hover{background:#f7f9fb}
+  .magasin-check input{accent-color:var(--brand);width:15px;height:15px}
+  .magasin-check input:checked + .magasin-label{font-weight:600}
+  .magasin-label{flex:1;cursor:pointer}
+
+  /* City checks (multi-select) */
+  .city-checks{display:grid;grid-template-columns:1fr;gap:6px}
+  .city-check{
+    display:flex;align-items:center;gap:7px;padding:8px 9px;border:1px solid var(--border);
+    border-radius:7px;cursor:pointer;font-size:13px;user-select:none;background:#fff;
+    transition:background .12s,border-color .12s;
+  }
+  .city-check:hover{background:#f7f9fb}
+  .city-check input{accent-color:var(--brand);width:15px;height:15px}
+  .city-check input:checked + .city-label{font-weight:600}
+  .city-label{flex:1;cursor:pointer}
+
+  /* ---------- Legend / toolbar ---------- */
+  .map-toolbar{
+    display:flex;align-items:center;gap:14px;padding:8px 12px;background:var(--card);
+    border-bottom:1px solid var(--border);flex-wrap:wrap;
+  }
+  .legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .legend .item{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink)}
+  .legend .item .swatch{width:13px;height:13px;border-radius:50%}
+  .toolbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .toggle{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none}
+  .toggle input{accent-color:var(--brand);width:15px;height:15px}
+  .count-pill{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+  /* ---------- Map ---------- */
+  #map{flex:1;min-height:240px;background:#dfe5ea}
+  .leaflet-popup-content{font-family:inherit;margin:10px 12px;font-size:13px;line-height:1.5}
+  .popup-title{font-weight:700;font-size:14px;margin-bottom:2px}
+  .popup-bu{display:inline-block;padding:1px 8px;border-radius:20px;color:#fff;font-size:11px;font-weight:700;margin:3px 0}
+
+  /* ---------- Table ---------- */
+  .table-wrap{
+    max-height:34vh;overflow:auto;background:var(--card);border-top:1px solid var(--border);
+  }
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{
+    position:sticky;top:0;background:#f4f6f8;text-align:left;padding:9px 12px;font-size:11px;
+    text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--border);font-weight:700;
+  }
+  tbody td{padding:8px 12px;border-bottom:1px solid #eef2f5;vertical-align:middle}
+  tbody tr:hover{background:#fafbfc}
+  .bu-badge{display:inline-block;padding:2px 9px;border-radius:20px;color:#fff;font-size:11px;font-weight:700;white-space:nowrap}
+  .num{font-variant-numeric:tabular-nums;text-align:right}
+  .actions{display:flex;gap:5px;justify-content:flex-end}
+  .icon-btn{
+    border:1px solid var(--border);background:#fff;border-radius:7px;padding:4px 8px;cursor:pointer;
+    font-size:12px;color:var(--ink);font-weight:600;
+  }
+  .icon-btn:hover{background:#f3f6f8}
+  .icon-btn.del:hover{background:#fdecee;border-color:#f3b8c1;color:var(--brand-dark)}
+  .empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
+
+  .divider{height:1px;background:var(--border);margin:12px 0}
+  .data-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  /* badge édition */
+  .editing-banner{
+    background:#fff6e9;border:1px solid #f3d9a8;color:#8a5a12;border-radius:8px;
+    padding:8px 10px;font-size:12px;font-weight:600;margin-bottom:10px;display:none;
+    align-items:center;gap:8px;justify-content:space-between;
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:860px){
+    .app{flex-direction:column;height:auto}
+    .sidebar{width:100%;border-right:none;border-bottom:1px solid var(--border);max-height:none}
+    .map-panel{height:78vh}
+    #map{min-height:340px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="logo">C</div>
+  <div class="title-wrap">
+    <h1>Rayons de livraison — Magasins Carrefour</h1>
+    <p>Cartographie & pilotage des zones de livraison · Groupe Labelvie</p>
+  </div>
+  <span id="modeBadge" class="mode-badge">● …</span>
+  <div class="header-stat">
+    <b id="statTotal">0</b>
+    <span>magasins enregistrés</span>
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+
+    <!-- Ajouter / Modifier -->
+    <div class="card">
+      <h2><span class="dot"></span><span id="formTitle">Ajouter un magasin</span></h2>
+
+      <div class="editing-banner" id="editBanner">
+        <span>✏️ Modification en cours</span>
+        <button class="btn btn-sm btn-ghost" id="cancelEdit">Annuler</button>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="fCode">Code site</label>
+          <input id="fCode" type="text" placeholder="Ex. 1024" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="fBU">BU (format)</label>
+          <select id="fBU">
+            <option value="Express">Express</option>
+            <option value="Market">Market</option>
+            <option value="Hyper">Hyper</option>
+            <option value="Gourmet">Gourmet</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="fNom">Nom du magasin</label>
+        <input id="fNom" type="text" placeholder="Ex. Carrefour Express Maârif" autocomplete="off">
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="fVille">Ville</label>
+          <input id="fVille" type="text" placeholder="Ex. Casablanca" autocomplete="off" list="villesList">
+          <datalist id="villesList"></datalist>
+        </div>
+        <div class="field">
+          <label for="fRayon">Rayon (km)</label>
+          <input id="fRayon" type="number" min="0" step="0.1" placeholder="Ex. 3.5">
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field">
+        <label for="fAdresse">Adresse / lieu (pour localiser automatiquement)</label>
+        <input id="fAdresse" type="text" placeholder="Ex. Boulevard Zerktouni, Maârif" autocomplete="off">
+        <button class="btn btn-sub btn-block btn-sm" id="btnGeocode" style="margin-top:7px">📍 Localiser sur la carte</button>
+        <p class="hint" id="geoHint">Astuce : vous pouvez aussi <b>cliquer directement sur la carte</b> pour positionner le magasin.</p>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="fLat">Latitude</label>
+          <input id="fLat" type="number" step="any" placeholder="33.5883">
+        </div>
+        <div class="field">
+          <label for="fLng">Longitude</label>
+          <input id="fLng" type="number" step="any" placeholder="-7.6328">
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="btnSave">Ajouter le magasin</button>
+    </div>
+
+    <!-- Filtres -->
+    <div class="card">
+      <h2><span class="dot"></span>Filtres</h2>
+
+      <div class="field">
+        <label for="fSearch">Recherche (code, nom ou ville)</label>
+        <input id="fSearch" type="text" placeholder="Rechercher…" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label>Villes
+          <button class="btn btn-sm btn-ghost" id="btnSelectAllCities" style="float:right;padding:2px 8px;font-size:11px">Tous</button>
+          <button class="btn btn-sm btn-ghost" id="btnDeselectAllCities" style="float:right;padding:2px 8px;font-size:11px;margin-right:4px">Aucun</button>
+        </label>
+        <div class="city-checks" id="cityChecks" style="max-height:180px;overflow-y:auto;border:1px solid #dde3ea;border-radius:8px;padding:8px;background:#fafbfc"></div>
+      </div>
+
+      <div class="field">
+        <label>Magasins
+          <button class="btn btn-sm btn-ghost" id="btnSelectAllMagasins" style="float:right;padding:2px 8px;font-size:11px">Tous</button>
+          <button class="btn btn-sm btn-ghost" id="btnDeselectAllMagasins" style="float:right;padding:2px 8px;font-size:11px;margin-right:4px">Aucun</button>
+        </label>
+        <div class="magasin-checks" id="magasinChecks" style="max-height:200px;overflow-y:auto;border:1px solid #dde3ea;border-radius:8px;padding:8px;background:#fafbfc"></div>
+      </div>
+
+      <div class="field">
+        <label>Format (BU)</label>
+        <div class="bu-checks" id="buChecks">
+          <label class="bu-check"><input type="checkbox" value="Express" checked><span class="swatch" style="background:var(--bu-express)"></span>Express</label>
+          <label class="bu-check"><input type="checkbox" value="Market" checked><span class="swatch" style="background:var(--bu-market)"></span>Market</label>
+          <label class="bu-check"><input type="checkbox" value="Hyper" checked><span class="swatch" style="background:var(--bu-hyper)"></span>Hyper</label>
+          <label class="bu-check"><input type="checkbox" value="Gourmet" checked><span class="swatch" style="background:var(--bu-gourmet)"></span>Gourmet</label>
+          <label class="bu-check"><input type="checkbox" value="Autre" checked><span class="swatch" style="background:var(--bu-autre)"></span>Autre</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Rayon (km)</label>
+        <div class="row2">
+          <input id="fRayonMin" type="number" min="0" step="0.5" placeholder="Min">
+          <input id="fRayonMax" type="number" min="0" step="0.5" placeholder="Max">
+        </div>
+      </div>
+
+      <button class="btn btn-ghost btn-block btn-sm" id="btnResetFilters">Réinitialiser les filtres</button>
+    </div>
+
+    <!-- Données -->
+    <div class="card">
+      <h2><span class="dot"></span>Données (import / export)</h2>
+      <div class="btn-row" style="margin-bottom:8px">
+        <button class="btn btn-sub" id="btnExportCSV">⬇️ Exporter CSV</button>
+        <button class="btn btn-sub" id="btnTemplate">📄 Modèle CSV</button>
+      </div>
+      <button class="btn btn-primary btn-block btn-sm" id="btnImportCSV" style="margin-bottom:10px">⬆️ Importer un fichier CSV</button>
+      <input type="file" id="fileCSV" accept=".csv,text/csv" hidden>
+
+      <button class="btn btn-sub btn-block btn-sm" id="btnImportOSM" style="margin-bottom:10px">🗺️ Importer les magasins Carrefour (OpenStreetMap)</button>
+
+      <div class="data-grid">
+        <button class="btn btn-ghost btn-sm" id="btnExportJSON">Sauvegarde JSON</button>
+        <button class="btn btn-ghost btn-sm" id="btnImportJSON">Restaurer JSON</button>
+      </div>
+      <input type="file" id="fileJSON" accept=".json,application/json" hidden>
+
+      <div class="divider"></div>
+      <button class="btn btn-ghost btn-block btn-sm" id="btnGeocodeMissing">🛰️ Géocoder les magasins sans coordonnées</button>
+      <div class="data-grid" style="margin-top:8px">
+        <button class="btn btn-ghost btn-sm btn-danger" id="btnReset">Charger les exemples</button>
+        <button class="btn btn-ghost btn-sm btn-danger" id="btnClear">Tout supprimer</button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ============ CARTE ============ -->
+  <section class="map-panel">
+    <div class="map-toolbar">
+      <div class="legend">
+        <span class="item"><span class="swatch" style="background:var(--bu-express)"></span>Express</span>
+        <span class="item"><span class="swatch" style="background:var(--bu-market)"></span>Market</span>
+        <span class="item"><span class="swatch" style="background:var(--bu-hyper)"></span>Hyper</span>
+        <span class="item"><span class="swatch" style="background:var(--bu-gourmet)"></span>Gourmet</span>
+      </div>
+      <div class="toolbar-right">
+        <span class="count-pill" id="countPill">0 affichés</span>
+        <label class="toggle"><input type="checkbox" id="toggleRadius" checked>Afficher les rayons</label>
+        <button class="btn btn-ghost btn-sm" id="btnRecenter">🎯 Recentrer</button>
+      </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Ville</th>
+            <th>Magasin</th>
+            <th>BU</th>
+            <th class="num">Rayon</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   CONFIGURATION ÉQUIPE — base partagée (Supabase)
+   ------------------------------------------------------------
+   • Champs VIDES         -> mode LOCAL (données sur cet appareil).
+   • URL + clé "anon"     -> base PARTAGÉE, synchronisée en temps réel.
+   Voir le guide d'installation fourni avec ce fichier.
+   ============================================================ */
+const SUPABASE_URL   = "https://xzothkshljweesobliix.supabase.co";          // ex. "https://abcdxyz.supabase.co"
+const SUPABASE_KEY   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6b3Roa3NobGp3ZWVzb2JsaWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4MDIyNzMsImV4cCI6MjA5NzM3ODI3M30.NwssWIDUNyk3oQ6CoZ_QkSf1Sceyc-q4u2tbct5QZ3U";          // clé publique "anon"
+const SUPABASE_TABLE = "magasins";
+
+/* ============================================================
+   Configuration
+   ============================================================ */
+const STORAGE_KEY = "carrefour_rayons_stores_v1";
+const BU_CANON = ["Express","Market","Hyper","Gourmet"];
+const BU_COLORS = {
+  Express:"#1E8E3E", Market:"#C8102E", Hyper:"#1565C0", Gourmet:"#5D4037", Autre:"#7a8794"
+};
+const MAROC_CENTER = [31.7, -7.3];
+
+/* Données d'exemple (coordonnées approximatives — à ajuster) */
+const SEED = [
+  { code:"1001", ville:"Casablanca", nom:"Carrefour Express Maârif",   bu:"Express", rayon:3,   lat:33.5883, lng:-7.6328 },
+  { code:"1002", ville:"Casablanca", nom:"Carrefour Market Anfa",      bu:"Market",  rayon:4,   lat:33.5945, lng:-7.6610 },
+  { code:"1003", ville:"Casablanca", nom:"Hyper Sidi Maârouf",         bu:"Hyper",   rayon:6,   lat:33.5240, lng:-7.6450 },
+  { code:"1004", ville:"Casablanca", nom:"Carrefour Gourmet Ain Diab", bu:"Gourmet", rayon:2.5, lat:33.5950, lng:-7.6900 },
+  { code:"2001", ville:"Rabat",      nom:"Carrefour Market Agdal",     bu:"Market",  rayon:4,   lat:34.0021, lng:-6.8523 },
+  { code:"3001", ville:"Marrakech",  nom:"Carrefour Express Guéliz",   bu:"Express", rayon:3.5, lat:31.6360, lng:-8.0100 },
+  { code:"4001", ville:"Tanger",     nom:"Carrefour Market City",      bu:"Market",  rayon:4.5, lat:35.7700, lng:-5.8000 }
+];
+
+/* ============================================================
+   État
+   ============================================================ */
+let stores = [];
+let editingId = null;
+let map, tileOSM, layerGroup, tempMarker;
+const markerIndex = {}; // id -> circleMarker
+
+/* ============================================================
+   Utilitaires
+   ============================================================ */
+const $ = (id) => document.getElementById(id);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+function norm(s){
+  return (s||"").toString().trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+}
+function esc(s){
+  return (s||"").toString().replace(/[&<>"']/g, m =>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+}
+function canonBU(v){
+  const n = norm(v);
+  if(n.includes("express")) return "Express";
+  if(n.includes("market"))  return "Market";
+  if(n.includes("hyper"))   return "Hyper";
+  if(n.includes("gourmet")) return "Gourmet";
+  if(BU_CANON.map(norm).includes(n)) {
+    return BU_CANON.find(b => norm(b)===n);
+  }
+  return v ? v.toString().trim() : "Autre";
+}
+function buColor(bu){ return BU_COLORS[bu] || BU_COLORS.Autre; }
+function buGroup(bu){ return BU_CANON.includes(bu) ? bu : "Autre"; }
+
+/* ============================================================
+   Persistance (tolérante : fonctionne aussi sans localStorage)
+   ============================================================ */
+function saveStores(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stores)); }
+  catch(e){ /* stockage indisponible (aperçu) — données en mémoire uniquement */ }
+}
+function loadStores(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  } catch(e){}
+  return null;
+}
+
+/* ============================================================
+   Base partagée (Supabase) — couche données temps réel
+   ============================================================ */
+const Cloud = {
+  enabled:false, sb:null, table:SUPABASE_TABLE, _timer:null,
+
+  init(){
+    if(!SUPABASE_URL || !SUPABASE_KEY) return false;
+    if(typeof supabase === "undefined" || !supabase.createClient){
+      console.warn("Librairie Supabase non chargée."); return false;
+    }
+    try { this.sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); this.enabled = true; return true; }
+    catch(e){ console.error("Init Supabase:", e); return false; }
+  },
+
+  _clean(s){
+    return { id:s.id, code:s.code||"", nom:s.nom, ville:s.ville, bu:s.bu,
+             rayon:s.rayon, lat:s.lat, lng:s.lng };
+  },
+  _fromRow(r){
+    return { id:String(r.id), code:r.code||"", nom:r.nom||"", ville:r.ville||"",
+             bu:canonBU(r.bu), rayon:Number(r.rayon)||0,
+             lat:Number(r.lat)||0, lng:Number(r.lng)||0 };
+  },
+
+  async all(){
+    const { data, error } = await this.sb.from(this.table).select("*");
+    if(error) throw error;
+    return (data||[]).map(r=>this._fromRow(r));
+  },
+  async insert(s){
+    const { error } = await this.sb.from(this.table).insert(this._clean(s));
+    if(error) throw error;
+  },
+  async insertMany(arr){
+    for(let i=0;i<arr.length;i+=500){
+      const chunk = arr.slice(i,i+500).map(x=>this._clean(x));
+      const { error } = await this.sb.from(this.table).insert(chunk);
+      if(error) throw error;
+    }
+  },
+  async update(s){
+    const { error } = await this.sb.from(this.table).update(this._clean(s)).eq("id", s.id);
+    if(error) throw error;
+  },
+  async remove(id){
+    const { error } = await this.sb.from(this.table).delete().eq("id", id);
+    if(error) throw error;
+  },
+  async clearAll(){
+    const { error } = await this.sb.from(this.table).delete().neq("id", "___none___");
+    if(error) throw error;
+  },
+  subscribe(cb){
+    this.sb.channel("magasins-rt")
+      .on("postgres_changes", { event:"*", schema:"public", table:this.table },
+          ()=>{ clearTimeout(this._timer); this._timer = setTimeout(cb, 400); })
+      .subscribe();
+  }
+};
+
+function setStatus(mode, detail){
+  const el = $("modeBadge"); if(!el) return;
+  el.className = "mode-badge"; el.title = detail || "";
+  if(mode==="cloud"){        el.classList.add("mode-cloud");   el.textContent = "● Base partagée connectée"; }
+  else if(mode==="loading"){ el.classList.add("mode-loading"); el.textContent = "● Connexion…"; }
+  else if(mode==="error"){   el.classList.add("mode-error");   el.textContent = "● Hors-ligne (local)"; }
+  else {                                                       el.textContent = "● Mode local"; }
+}
+
+/* ============================================================
+   Carte
+   ============================================================ */
+function initMap(){
+  map = L.map("map", { zoomControl:true }).setView(MAROC_CENTER, 6);
+
+  tileOSM = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom:19, attribution:"© OpenStreetMap"
+  });
+  const tileSat = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom:19, attribution:"© Esri" }
+  );
+  tileOSM.addTo(map);
+  L.control.layers({ "Plan (OSM)":tileOSM, "Satellite":tileSat }, null, { position:"topright" }).addTo(map);
+
+  layerGroup = L.layerGroup().addTo(map);
+
+  map.on("click", (e) => {
+    $("fLat").value = e.latlng.lat.toFixed(6);
+    $("fLng").value = e.latlng.lng.toFixed(6);
+    updateTempMarker();
+  });
+}
+
+function updateTempMarker(){
+  const lat = parseFloat($("fLat").value);
+  const lng = parseFloat($("fLng").value);
+  if(isNaN(lat) || isNaN(lng)){
+    if(tempMarker){ map.removeLayer(tempMarker); tempMarker = null; }
+    return;
+  }
+  if(!tempMarker){
+    tempMarker = L.circleMarker([lat,lng], {
+      radius:8, color:"#111", weight:2, fillColor:"#fde047", fillOpacity:1, dashArray:"3"
+    }).addTo(map).bindTooltip("Nouvel emplacement", {permanent:false});
+  } else {
+    tempMarker.setLatLng([lat,lng]);
+  }
+}
+
+function renderMap(fit){
+  layerGroup.clearLayers();
+  for(const k in markerIndex) delete markerIndex[k];
+
+  const visible = getVisibleStores();
+  const showRadius = $("toggleRadius").checked;
+  const bounds = [];
+
+  visible.forEach(s => {
+    const color = buColor(s.bu);
+    if(showRadius && s.rayon > 0){
+      L.circle([s.lat,s.lng], {
+        radius: s.rayon*1000, color, fillColor:color, fillOpacity:0.10, weight:1.5
+      }).addTo(layerGroup);
+      // approx bounding box du cercle pour le fitBounds
+      const dLat = s.rayon/111;
+      const dLng = s.rayon/(111*Math.cos(s.lat*Math.PI/180) || 1);
+      bounds.push([s.lat-dLat, s.lng-dLng]);
+      bounds.push([s.lat+dLat, s.lng+dLng]);
+    } else {
+      bounds.push([s.lat, s.lng]);
+    }
+
+    const m = L.circleMarker([s.lat,s.lng], {
+      radius:6, color:"#fff", weight:2, fillColor:color, fillOpacity:1
+    }).addTo(layerGroup);
+
+    m.bindPopup(
+      '<div class="popup-title">'+esc(s.nom)+'</div>'+
+      '<div style="color:#6b7785">'+esc(s.ville)+(s.code?' · Code '+esc(s.code):'')+'</div>'+
+      '<span class="popup-bu" style="background:'+color+'">'+esc(s.bu)+'</span>'+
+      '<div>Rayon de livraison : <b>'+s.rayon+' km</b></div>'
+    );
+    m.bindTooltip(esc(s.nom), {direction:"top"});
+    markerIndex[s.id] = m;
+  });
+
+  if(fit && bounds.length){
+    try { map.fitBounds(bounds, { padding:[40,40], maxZoom:14 }); } catch(e){}
+  }
+}
+
+/* ============================================================
+   Filtres
+   ============================================================ */
+function getSelectedBUs(){
+  return Array.from(document.querySelectorAll("#buChecks input:checked")).map(c=>c.value);
+}
+function getSelectedCities(){
+  return Array.from(document.querySelectorAll("#cityChecks input:checked")).map(c=>c.value);
+}
+function getSelectedMagasins(){
+  return Array.from(document.querySelectorAll("#magasinChecks input:checked")).map(c=>c.value);
+}
+function getVisibleStores(){
+  const q = norm($("fSearch").value);
+  const selectedCities = getSelectedCities();
+  const selectedMagasins = getSelectedMagasins();
+  const sel = getSelectedBUs();
+  const min = parseFloat($("fRayonMin").value);
+  const max = parseFloat($("fRayonMax").value);
+
+  return stores.filter(s => {
+    if(q && !(norm(s.nom).includes(q) || norm(s.ville).includes(q) || norm(s.code).includes(q))) return false;
+    if(selectedCities.length > 0 && !selectedCities.includes(s.ville)) return false;
+    if(selectedMagasins.length > 0 && !selectedMagasins.includes(s.nom)) return false;
+    if(!sel.includes(buGroup(s.bu))) return false;
+    if(!isNaN(min) && s.rayon < min) return false;
+    if(!isNaN(max) && s.rayon > max) return false;
+    return true;
+  });
+}
+
+/* ============================================================
+   Rendu : tableau + filtres ville + compteurs
+   ============================================================ */
+function renderTable(){
+  const visible = getVisibleStores();
+  const tb = $("tableBody");
+
+  if(visible.length === 0){
+    tb.innerHTML = '<tr><td colspan="6" class="empty">Aucun magasin à afficher. Ajoutez-en un ou ajustez les filtres.</td></tr>';
+  } else {
+    visible.sort((a,b)=> a.ville.localeCompare(b.ville) || a.nom.localeCompare(b.nom));
+    tb.innerHTML = visible.map(s => {
+      const color = buColor(s.bu);
+      return '<tr>'+
+        '<td>'+esc(s.code||'')+'</td>'+
+        '<td>'+esc(s.ville)+'</td>'+
+        '<td>'+esc(s.nom)+'</td>'+
+        '<td><span class="bu-badge" style="background:'+color+'">'+esc(s.bu)+'</span></td>'+
+        '<td class="num">'+s.rayon+' km</td>'+
+        '<td><div class="actions">'+
+          '<button class="icon-btn" data-act="locate" data-id="'+s.id+'" title="Voir sur la carte">Voir</button>'+
+          '<button class="icon-btn" data-act="edit" data-id="'+s.id+'" title="Modifier">Modifier</button>'+
+          '<button class="icon-btn del" data-act="del" data-id="'+s.id+'" title="Supprimer">✕</button>'+
+        '</div></td>'+
+      '</tr>';
+    }).join("");
+  }
+
+  $("countPill").textContent = visible.length + " affiché" + (visible.length>1?"s":"") +
+    " / " + stores.length;
+  $("statTotal").textContent = stores.length;
+}
+
+function renderCityFilter(){
+  const cities = Array.from(new Set(stores.map(s=>s.ville).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  const cont = $("cityChecks");
+  
+  // Récupérer les sélections actuelles
+  const checked = Array.from(document.querySelectorAll("#cityChecks input:checked")).map(c=>c.value);
+  
+  // Générer les cases à cocher
+  cont.innerHTML = cities.map(c => 
+    '<label class="city-check">' +
+    '<input type="checkbox" value="'+esc(c)+'"' + (checked.includes(c) ? ' checked' : '') + '>' +
+    '<span class="city-label">'+esc(c)+'</span>' +
+    '</label>'
+  ).join("");
+  
+  // Relier les événements
+  document.querySelectorAll("#cityChecks input").forEach(c => {
+    c.addEventListener("change", ()=>{ 
+      renderMagasinFilter();  // mettre à jour les magasins quand une ville change
+      renderTable(); renderMap(false); 
+    });
+  });
+
+  $("villesList").innerHTML = cities.map(c=>'<option value="'+esc(c)+'"></option>').join("");
+}
+
+function renderMagasinFilter(){
+  // Récupérer les villes sélectionnées
+  const selectedCities = Array.from(document.querySelectorAll("#cityChecks input:checked")).map(c=>c.value);
+  
+  // Si des villes sont sélectionnées, afficher seulement leurs magasins
+  const list = selectedCities.length > 0
+    ? stores.filter(s=>selectedCities.includes(s.ville)).map(s=>s.nom).filter(Boolean)
+    : stores.map(s=>s.nom).filter(Boolean);
+  
+  const magasins = Array.from(new Set(list)).sort((a,b)=>a.localeCompare(b));
+  const cont = $("magasinChecks");
+  
+  // Récupérer les sélections actuelles
+  const checked = Array.from(document.querySelectorAll("#magasinChecks input:checked")).map(c=>c.value);
+  
+  // Générer les cases à cocher
+  cont.innerHTML = magasins.map(m => 
+    '<label class="magasin-check">' +
+    '<input type="checkbox" value="'+esc(m)+'"' + (checked.includes(m) ? ' checked' : '') + '>' +
+    '<span class="magasin-label">'+esc(m)+'</span>' +
+    '</label>'
+  ).join("");
+  
+  // Relier les événements
+  document.querySelectorAll("#magasinChecks input").forEach(c => {
+    c.addEventListener("change", ()=>{ renderTable(); renderMap(false); });
+  });
+}
+
+function renderAll(fit){
+  renderCityFilter();
+  renderMagasinFilter();
+  renderTable();
+  renderMap(fit);
+}
+
+/* ============================================================
+   Ajout / modification / suppression
+   ============================================================ */
+function resetForm(){
+  editingId = null;
+  ["fCode","fNom","fVille","fRayon","fAdresse","fLat","fLng"].forEach(id=>$(id).value="");
+  $("fBU").value = "Express";
+  $("formTitle").textContent = "Ajouter un magasin";
+  $("btnSave").textContent = "Ajouter le magasin";
+  $("editBanner").style.display = "none";
+  if(tempMarker){ map.removeLayer(tempMarker); tempMarker=null; }
+}
+
+async function saveStoreFromForm(){
+  const code = $("fCode").value.trim();
+  const nom = $("fNom").value.trim();
+  const ville = $("fVille").value.trim();
+  const bu = $("fBU").value;
+  const rayon = parseFloat($("fRayon").value);
+  let lat = parseFloat($("fLat").value);
+  let lng = parseFloat($("fLng").value);
+
+  if(!nom){ alert("Veuillez saisir le nom du magasin."); $("fNom").focus(); return; }
+  if(!ville){ alert("Veuillez saisir la ville."); $("fVille").focus(); return; }
+  if(isNaN(rayon) || rayon<=0){ alert("Veuillez saisir un rayon de livraison valide (en km)."); $("fRayon").focus(); return; }
+  if(isNaN(lat) || isNaN(lng)){
+    alert("Position manquante.\n\nCliquez sur la carte, utilisez « Localiser sur la carte », ou saisissez la latitude/longitude.");
+    return;
+  }
+
+  const btn = $("btnSave"); btn.disabled = true;
+  try {
+    if(editingId){
+      const s = stores.find(x=>x.id===editingId);
+      if(!s) return;
+      const updated = { ...s, code, nom, ville, bu, rayon, lat, lng };
+      if(Cloud.enabled) await Cloud.update(updated);
+      Object.assign(s, { code, nom, ville, bu, rayon, lat, lng });
+    } else {
+      const obj = { id:uid(), code, nom, ville, bu, rayon, lat, lng };
+      if(Cloud.enabled) await Cloud.insert(obj);
+      stores.push(obj);
+    }
+    if(!Cloud.enabled) saveStores();
+  } catch(e){
+    alert("Échec de l'enregistrement sur la base partagée :\n"+(e.message||e));
+    return;
+  } finally { btn.disabled = false; }
+
+  const wasEditing = !!editingId;
+  resetForm();
+  renderAll(!wasEditing); // recentre sur ajout, garde la vue en modification
+}
+
+function editStore(id){
+  const s = stores.find(x=>x.id===id);
+  if(!s) return;
+  editingId = id;
+  $("fCode").value = s.code || "";
+  $("fNom").value = s.nom;
+  $("fVille").value = s.ville;
+  $("fBU").value = BU_CANON.includes(s.bu) ? s.bu : "Express";
+  $("fRayon").value = s.rayon;
+  $("fLat").value = s.lat;
+  $("fLng").value = s.lng;
+  $("formTitle").textContent = "Modifier le magasin";
+  $("btnSave").textContent = "Mettre à jour";
+  $("editBanner").style.display = "flex";
+  updateTempMarker();
+  map.setView([s.lat,s.lng], Math.max(map.getZoom(),13));
+  document.querySelector(".sidebar").scrollTo({top:0, behavior:"smooth"});
+}
+
+async function deleteStore(id){
+  const s = stores.find(x=>x.id===id);
+  if(!s) return;
+  if(!confirm('Supprimer « '+s.nom+' » ?')) return;
+  try {
+    if(Cloud.enabled) await Cloud.remove(id);
+  } catch(e){
+    alert("Échec de la suppression sur la base partagée :\n"+(e.message||e));
+    return;
+  }
+  stores = stores.filter(x=>x.id!==id);
+  if(editingId===id) resetForm();
+  if(!Cloud.enabled) saveStores();
+  renderAll(false);
+}
+
+function locateStore(id){
+  const s = stores.find(x=>x.id===id);
+  if(!s) return;
+  map.setView([s.lat,s.lng], 14);
+  const m = markerIndex[id];
+  if(m) m.openPopup();
+}
+
+/* ============================================================
+   Géocodage (Nominatim) — fonctionne en local
+   ============================================================ */
+async function geocode(query){
+  const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ma&q="
+    + encodeURIComponent(query);
+  const res = await fetch(url, { headers:{ "Accept":"application/json" } });
+  if(!res.ok) throw new Error("Réponse réseau invalide");
+  const data = await res.json();
+  if(!data.length) return null;
+  return { lat:parseFloat(data[0].lat), lng:parseFloat(data[0].lon) };
+}
+
+async function geocodeForm(){
+  const parts = [$("fAdresse").value.trim(), $("fVille").value.trim(), "Maroc"].filter(Boolean);
+  if(parts.length<=1){ alert("Saisissez une adresse et/ou une ville pour la localisation."); return; }
+  const btn = $("btnGeocode");
+  const old = btn.textContent;
+  btn.textContent = "Recherche…"; btn.disabled = true;
+  try{
+    const r = await geocode(parts.join(", "));
+    if(r){
+      $("fLat").value = r.lat.toFixed(6);
+      $("fLng").value = r.lng.toFixed(6);
+      updateTempMarker();
+      map.setView([r.lat,r.lng], 14);
+      $("geoHint").textContent = "Position trouvée ✔ — ajustez-la en cliquant sur la carte si besoin.";
+      $("geoHint").classList.remove("warn");
+    } else {
+      $("geoHint").textContent = "Adresse introuvable. Cliquez sur la carte pour positionner le magasin.";
+      $("geoHint").classList.add("warn");
+    }
+  }catch(e){
+    $("geoHint").textContent = "Géocodage indisponible (ouvrez le fichier dans un navigateur). Cliquez sur la carte ou saisissez les coordonnées.";
+    $("geoHint").classList.add("warn");
+  }finally{
+    btn.textContent = old; btn.disabled = false;
+  }
+}
+
+async function geocodeMissing(){
+  const todo = stores.filter(s => isNaN(parseFloat(s.lat)) || isNaN(parseFloat(s.lng)) || (s.lat===0&&s.lng===0));
+  if(todo.length===0){ alert("Tous les magasins ont déjà des coordonnées."); return; }
+  if(!confirm(todo.length+" magasin(s) sans coordonnées seront géocodés (1 par seconde). Continuer ?")) return;
+
+  let ok=0, ko=0;
+  for(const s of todo){
+    try{
+      const r = await geocode([s.nom, s.ville, "Maroc"].filter(Boolean).join(", "));
+      if(r){
+        s.lat=r.lat; s.lng=r.lng; ok++;
+        if(Cloud.enabled){ try{ await Cloud.update(s); }catch(e){ console.error(e); } }
+      } else ko++;
+    }catch(e){ ko++; }
+    if(!Cloud.enabled) saveStores();
+    renderAll(false);
+    await new Promise(r=>setTimeout(r,1100)); // respect des limites Nominatim
+  }
+  alert("Géocodage terminé. Localisés : "+ok+" — échecs : "+ko+".");
+  renderAll(true);
+}
+
+/* ============================================================
+   CSV (canevas : Ville,Nom_Magasin,BU,Rayon_km,Latitude,Longitude)
+   ============================================================ */
+const CSV_HEADER = ["Code_Site","Ville","Nom_Magasin","BU","Rayon_km","Latitude","Longitude"];
+
+function csvCell(v){
+  v = (v===undefined||v===null) ? "" : v.toString();
+  return /[",;\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+}
+function exportCSV(){
+  const lines = [CSV_HEADER.join(",")];
+  stores.forEach(s=>{
+    lines.push([s.code, s.ville, s.nom, s.bu, s.rayon, s.lat, s.lng].map(csvCell).join(","));
+  });
+  download("magasins-carrefour-rayons.csv", "\uFEFF"+lines.join("\r\n"), "text/csv;charset=utf-8");
+}
+function downloadTemplate(){
+  const lines = [
+    CSV_HEADER.join(","),
+    "1001,Casablanca,Carrefour Express Maârif,Express,3,33.5883,-7.6328",
+    "2001,Rabat,Carrefour Market Agdal,Market,4,34.0021,-6.8523",
+    "1003,Casablanca,Hyper Sidi Maârouf,Hyper,6,33.5240,-7.6450"
+  ];
+  download("modele-magasins-carrefour.csv", "\uFEFF"+lines.join("\r\n"), "text/csv;charset=utf-8");
+}
+
+function detectDelimiter(text){
+  const first = (text.split(/\r?\n/)[0] || "");
+  const c = (first.match(/,/g)||[]).length;
+  const s = (first.match(/;/g)||[]).length;
+  return s>c ? ";" : ",";
+}
+function parseCSV(text, delim){
+  const rows=[]; let cur=[], field="", q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else q=false; }
+      else field+=c;
+    } else {
+      if(c==='"') q=true;
+      else if(c===delim){ cur.push(field); field=""; }
+      else if(c==='\n'){ cur.push(field); rows.push(cur); cur=[]; field=""; }
+      else if(c==='\r'){ /* ignore */ }
+      else field+=c;
+    }
+  }
+  if(field.length>0 || cur.length>0){ cur.push(field); rows.push(cur); }
+  return rows;
+}
+
+function colIndex(header){
+  const H = header.map(norm);
+  const find = (keys)=> { for(const k of keys){ const i=H.indexOf(k); if(i!==-1) return i; } return -1; };
+  return {
+    code:  find(["code_site","code site","code magasin","code","site","ref"]),
+    ville: find(["ville","city"]),
+    nom:   find(["nom_magasin","nom magasin","nom","magasin","store"]),
+    bu:    find(["bu","format","enseigne"]),
+    rayon: find(["rayon_km","rayon km","rayon (km)","rayon","radius"]),
+    lat:   find(["latitude","lat"]),
+    lng:   find(["longitude","lng","lon","long"])
+  };
+}
+
+function importCSV(file){
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    let text = e.target.result.replace(/^\uFEFF/, "");
+    const delim = detectDelimiter(text);
+    const rows = parseCSV(text, delim).filter(r => r.some(c => (c||"").trim()!==""));
+    if(rows.length<2){ alert("Fichier vide ou sans données."); return; }
+
+    const idx = colIndex(rows[0]);
+    if(idx.ville===-1 || idx.nom===-1){
+      alert("Colonnes introuvables.\nLe fichier doit contenir au minimum : Ville et Nom_Magasin.\nUtilisez le bouton « Modèle CSV ».");
+      return;
+    }
+
+    const imported=[]; let skipped=0;
+    for(let i=1;i<rows.length;i++){
+      const r=rows[i];
+      const get=(j)=> j>=0 && j<r.length ? (r[j]||"").trim() : "";
+      const nom=get(idx.nom), ville=get(idx.ville);
+      if(!nom || !ville){ skipped++; continue; }
+      const rayon=parseFloat((get(idx.rayon)||"").replace(",", ".")) || 0;
+      const lat=parseFloat((get(idx.lat)||"").replace(",", "."));
+      const lng=parseFloat((get(idx.lng)||"").replace(",", "."));
+      imported.push({
+        id:uid(), code:get(idx.code), nom, ville, bu:canonBU(get(idx.bu)), rayon,
+        lat:isNaN(lat)?0:lat, lng:isNaN(lng)?0:lng
+      });
+    }
+    if(imported.length===0){ alert("Aucune ligne valide importée."); return; }
+
+    const mode = confirm(
+      imported.length+" magasin(s) lus.\n\n" +
+      "OK = AJOUTER aux magasins existants\n" +
+      "Annuler = REMPLACER tous les magasins existants"
+    );
+    try {
+      if(Cloud.enabled){
+        if(!mode) await Cloud.clearAll();
+        await Cloud.insertMany(imported);
+      }
+    } catch(err){ alert("Échec de l'écriture sur la base partagée :\n"+(err.message||err)); return; }
+
+    stores = mode ? stores.concat(imported) : imported;
+    if(!Cloud.enabled) saveStores();
+    renderAll(true);
+
+    const noCoords = imported.filter(s=>s.lat===0&&s.lng===0).length;
+    let msg = "Import réussi : "+imported.length+" magasin(s)";
+    if(skipped) msg += " ("+skipped+" ligne(s) ignorée(s))";
+    if(noCoords) msg += ".\n"+noCoords+" magasin(s) sans coordonnées — utilisez « Géocoder les magasins sans coordonnées ».";
+    alert(msg);
+  };
+  reader.readAsText(file, "UTF-8");
+}
+
+/* ---------- JSON (sauvegarde complète) ---------- */
+function exportJSON(){
+  download("sauvegarde-magasins-carrefour.json", JSON.stringify(stores,null,2), "application/json");
+}
+function importJSON(file){
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    let restored;
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!Array.isArray(data)) throw new Error("format");
+      restored = data.map(s=>({
+        id:s.id||uid(), code:s.code||"", nom:s.nom||"", ville:s.ville||"",
+        bu:canonBU(s.bu), rayon:parseFloat(s.rayon)||0,
+        lat:parseFloat(s.lat)||0, lng:parseFloat(s.lng)||0
+      })).filter(s=>s.nom && s.ville);
+    }catch(err){ alert("Fichier JSON invalide."); return; }
+
+    try{
+      if(Cloud.enabled){ await Cloud.clearAll(); await Cloud.insertMany(restored); }
+    }catch(err){ alert("Échec de la restauration sur la base partagée :\n"+(err.message||err)); return; }
+
+    stores = restored;
+    if(!Cloud.enabled) saveStores();
+    renderAll(true);
+    alert("Sauvegarde restaurée : "+stores.length+" magasin(s).");
+  };
+  reader.readAsText(file, "UTF-8");
+}
+
+/* ============================================================
+   Import OpenStreetMap (Overpass) — magasins Carrefour Maroc
+   Données ouvertes © OpenStreetMap (ODbL). Couverture variable.
+   ============================================================ */
+function detectBUfromName(name){
+  const n = norm(name);
+  if(n.includes("atacad") || n.includes("supeco")) return "Autre";
+  if(n.includes("gourmet")) return "Gourmet";  // avant "market" (Carrefour Market Gourmet)
+  if(n.includes("express")) return "Express";
+  if(n.includes("market"))  return "Market";
+  if(n.includes("hyper"))   return "Hyper";
+  if(n.includes("carrefour")) return "Hyper";   // "Carrefour" seul = hypermarché
+  return "Autre";
+}
+
+async function importFromOSM(){
+  if(!confirm(
+    "Importer les magasins Carrefour du Maroc depuis OpenStreetMap ?\n\n" +
+    "• Données ouvertes et gratuites.\n" +
+    "• La couverture dépend des contributions OSM (peut être incomplète\n" +
+    "  par rapport à la liste interne Labelvie).\n" +
+    "• Le format (BU) est déduit du nom ; le rayon est mis à 0 (à définir).\n\n" +
+    "⚠️ À lancer en ouvrant le fichier dans un navigateur (pas dans l'aperçu)."
+  )) return;
+
+  const btn = $("btnImportOSM");
+  const old = btn.textContent;
+  btn.textContent = "Récupération… (jusqu'à ~30 s)"; btn.disabled = true;
+
+  const query =
+    '[out:json][timeout:90];' +
+    'area["ISO3166-1"="MA"][admin_level=2]->.ma;' +
+    '(' +
+    '  nwr["brand"~"Carrefour",i](area.ma);' +
+    '  nwr["name"~"Carrefour",i](area.ma);' +
+    ');' +
+    'out center tags;';
+
+  const endpoints = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter"
+  ];
+
+  let data = null, lastErr = null;
+  for(const ep of endpoints){
+    try{
+      const res = await fetch(ep, { method:"POST", body:"data="+encodeURIComponent(query) });
+      if(!res.ok){ lastErr = new Error("HTTP "+res.status); continue; }
+      data = await res.json();
+      break;
+    }catch(e){ lastErr = e; }
+  }
+
+  btn.textContent = old; btn.disabled = false;
+
+  if(!data){
+    alert("Échec de la récupération depuis OpenStreetMap.\n" +
+      "Vérifiez la connexion et que le fichier est ouvert dans un navigateur.\n\n" +
+      (lastErr ? "Détail : "+lastErr.message : ""));
+    return;
+  }
+
+  const seen = new Set();
+  const found = [];
+  (data.elements || []).forEach(el => {
+    const t = el.tags || {};
+    const lat = el.lat != null ? el.lat : (el.center && el.center.lat);
+    const lng = el.lon != null ? el.lon : (el.center && el.center.lon);
+    if(lat == null || lng == null) return;
+
+    const rawName = t.name || t["name:fr"] || t.brand || "Carrefour";
+    if(!/carrefour/i.test(rawName) && !/carrefour/i.test(t.brand || "")) return;
+    if(/atacad|supeco/i.test(rawName)) return; // autres enseignes
+
+    const key = rawName.toLowerCase()+"|"+lat.toFixed(4)+"|"+lng.toFixed(4);
+    if(seen.has(key)) return;
+    seen.add(key);
+
+    const ville = t["addr:city"] || t["addr:town"] || t["addr:place"] || t["addr:suburb"] || "";
+    found.push({
+      id: uid(),
+      code: t.ref || "",
+      nom: rawName,
+      ville: ville,
+      bu: detectBUfromName(rawName),
+      rayon: 0,
+      lat: +lat, lng: +lng
+    });
+  });
+
+  if(found.length === 0){
+    alert("Aucun magasin Carrefour trouvé sur OpenStreetMap pour cette requête.");
+    return;
+  }
+
+  const mode = confirm(
+    found.length+" magasin(s) Carrefour trouvé(s) sur OpenStreetMap.\n\n" +
+    "OK = AJOUTER aux magasins existants\n" +
+    "Annuler = REMPLACER tous les magasins existants"
+  );
+  try {
+    if(Cloud.enabled){
+      if(!mode) await Cloud.clearAll();
+      await Cloud.insertMany(found);
+    }
+  } catch(err){ alert("Échec de l'écriture sur la base partagée :\n"+(err.message||err)); return; }
+
+  stores = mode ? stores.concat(found) : found;
+  if(!Cloud.enabled) saveStores();
+  renderAll(true);
+
+  const noCity = found.filter(s => !s.ville).length;
+  alert("Import OpenStreetMap réussi : "+found.length+" magasin(s)." +
+    (noCity ? "\n"+noCity+" sans ville renseignée (à compléter)." : "") +
+    "\n\n→ Définissez ensuite le rayon de livraison de chaque magasin." +
+    "\nDonnées © OpenStreetMap (ODbL).");
+}
+
+function download(filename, content, type){
+  const blob = new Blob([content], {type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+/* ============================================================
+   Événements
+   ============================================================ */
+function bindEvents(){
+  // Formulaire
+  $("btnSave").addEventListener("click", saveStoreFromForm);
+  $("cancelEdit").addEventListener("click", resetForm);
+  $("btnGeocode").addEventListener("click", geocodeForm);
+  $("fLat").addEventListener("input", updateTempMarker);
+  $("fLng").addEventListener("input", updateTempMarker);
+
+  // Filtres → re-rendu sans recentrage
+  ["fSearch","fRayonMin","fRayonMax"].forEach(id=>{
+    $(id).addEventListener("input", ()=>{ renderTable(); renderMap(false); });
+    $(id).addEventListener("change", ()=>{ renderTable(); renderMap(false); });
+  });
+  
+  // Boutons villes (Tous / Aucun)
+  $("btnSelectAllCities").addEventListener("click", ()=>{
+    document.querySelectorAll("#cityChecks input").forEach(c=>c.checked=true);
+    renderMagasinFilter();
+    renderTable(); renderMap(false);
+  });
+  $("btnDeselectAllCities").addEventListener("click", ()=>{
+    document.querySelectorAll("#cityChecks input").forEach(c=>c.checked=false);
+    renderMagasinFilter();
+    renderTable(); renderMap(false);
+  });
+  
+  // Boutons magasins (Tous / Aucun)
+  $("btnSelectAllMagasins").addEventListener("click", ()=>{
+    document.querySelectorAll("#magasinChecks input").forEach(c=>c.checked=true);
+    renderTable(); renderMap(false);
+  });
+  $("btnDeselectAllMagasins").addEventListener("click", ()=>{
+    document.querySelectorAll("#magasinChecks input").forEach(c=>c.checked=false);
+    renderTable(); renderMap(false);
+  });
+  
+  document.querySelectorAll("#buChecks input").forEach(c=>{
+    c.addEventListener("change", ()=>{ renderTable(); renderMap(false); });
+  });
+  $("toggleRadius").addEventListener("change", ()=>renderMap(false));
+  $("btnResetFilters").addEventListener("click", ()=>{
+    $("fSearch").value=""; $("fRayonMin").value=""; $("fRayonMax").value="";
+    document.querySelectorAll("#cityChecks input").forEach(c=>c.checked=true);
+    document.querySelectorAll("#magasinChecks input").forEach(c=>c.checked=true);
+    document.querySelectorAll("#buChecks input").forEach(c=>c.checked=true);
+    renderTable(); renderMap(false);
+  });
+
+  // Carte
+  $("btnRecenter").addEventListener("click", ()=>renderMap(true));
+
+  // Tableau (délégation)
+  $("tableBody").addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-act]");
+    if(!btn) return;
+    const id = btn.dataset.id;
+    const act = btn.dataset.act;
+    if(act==="edit") editStore(id);
+    else if(act==="del") deleteStore(id);
+    else if(act==="locate") locateStore(id);
+  });
+
+  // Données
+  $("btnExportCSV").addEventListener("click", exportCSV);
+  $("btnTemplate").addEventListener("click", downloadTemplate);
+  $("btnImportCSV").addEventListener("click", ()=>$("fileCSV").click());
+  $("fileCSV").addEventListener("change", (e)=>{ if(e.target.files[0]){ importCSV(e.target.files[0]); e.target.value=""; }});
+  $("btnExportJSON").addEventListener("click", exportJSON);
+  $("btnImportJSON").addEventListener("click", ()=>$("fileJSON").click());
+  $("fileJSON").addEventListener("change", (e)=>{ if(e.target.files[0]){ importJSON(e.target.files[0]); e.target.value=""; }});
+  $("btnGeocodeMissing").addEventListener("click", geocodeMissing);
+  $("btnImportOSM").addEventListener("click", importFromOSM);
+
+  $("btnReset").addEventListener("click", async ()=>{
+    if(!confirm("Remplacer les magasins actuels par les exemples ?")) return;
+    const seeded = SEED.map(s=>({ id:uid(), ...s }));
+    try {
+      if(Cloud.enabled){ await Cloud.clearAll(); await Cloud.insertMany(seeded); }
+    } catch(e){ alert("Échec sur la base partagée :\n"+(e.message||e)); return; }
+    stores = seeded; resetForm();
+    if(!Cloud.enabled) saveStores();
+    renderAll(true);
+  });
+  $("btnClear").addEventListener("click", async ()=>{
+    if(!confirm("Supprimer TOUS les magasins ? Cette action est irréversible.")) return;
+    try {
+      if(Cloud.enabled) await Cloud.clearAll();
+    } catch(e){ alert("Échec sur la base partagée :\n"+(e.message||e)); return; }
+    stores = []; resetForm();
+    if(!Cloud.enabled) saveStores();
+    renderAll(true);
+  });
+}
+
+/* ============================================================
+   Démarrage
+   ============================================================ */
+async function init(){
+  initMap();
+  bindEvents();
+
+  if(Cloud.init()){
+    // Mode base partagée
+    setStatus("loading");
+    try {
+      stores = await Cloud.all();
+      Cloud.subscribe(syncFromCloud);   // synchronisation temps réel
+      setStatus("cloud");
+    } catch(e){
+      console.error("Chargement base partagée:", e);
+      setStatus("error", e.message || String(e));
+      const saved = loadStores();
+      stores = (saved && Array.isArray(saved)) ? saved : SEED.map(s=>({ id:uid(), ...s }));
+    }
+  } else {
+    // Mode local (cet appareil)
+    const saved = loadStores();
+    stores = (saved && Array.isArray(saved)) ? saved : SEED.map(s=>({ id:uid(), ...s }));
+    if(!saved) saveStores();
+    setStatus("local");
+  }
+  renderAll(true);
+}
+
+async function syncFromCloud(){
+  try { stores = await Cloud.all(); renderAll(false); }
+  catch(e){ console.error("Sync temps réel:", e); }
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
